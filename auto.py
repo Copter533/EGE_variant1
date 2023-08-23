@@ -16,6 +16,10 @@ solutions_folder = "solutions"
 download_folder = "files"
 
 
+def sensible_text(nonsense_text: str):
+    return re.sub(r'[^a-zA-Zа-яА-Я0-9ёЁ.\-+=?!/\\ ]', '', nonsense_text)
+
+
 def number_case(number):
     if not (10 <= number <= 20):
         if 2 <= number % 10 <= 4:
@@ -99,11 +103,11 @@ def parse_problem(url, problem_number):
         c = str(item).startswith('<p class="left_margin">') or str(item).startswith('<p>')
 
         if c:
-            description += item.text + ' '
+            description += item.get_text() + ' '
         else:
             indent_next = False if description.endswith('\n') else True
 
-    description = re.sub(r' +', ' ', description.replace(" ", " ")).strip('\n ')
+    description = re.sub(r' +', ' ', sensible_text(description)).strip('\n ')
 
     files = set(pbody.find_all(target="_blank"))
     for file in pbody.find_all(src=lambda v: v and "/get_file" in v): files.add(file)
@@ -126,11 +130,10 @@ def parse_problem(url, problem_number):
             mime_type = mimetypes.guess_extension(file_response.headers["Content-Type"].split(';')[0])
 
             assert mime_type, ValueError("ОЙ! Неизвестное расширение файла")
-
             posFT = [k for k, v in file_translations.items()
                      if mime_type[1:] in ([v] if isinstance(v, str) else v)]
             filetype = posFT[0] if posFT else 'unknown'
-            filename = (file.text if file.text else filetype) + mime_type
+            filename = sensible_text(file.text if file.text else filetype) + mime_type
             filepath = os.path.join(sub_folder, filename)
             downloaded_files.append(filepath)
             downloaded_recent[filename] = [False, None]

@@ -3,6 +3,7 @@ import re
 import subprocess
 import multiprocessing
 from time import time
+from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,11 +14,11 @@ solutions = "solutions"
 answers = "answers.html"
 
 
-def generate_html_table(table, wrongs):
+def generate_html_table(table, wrongs, newest_list):
     table_html = "<html>\n<head>\n<meta charset='UTF-8'>\n{}\n</head>\n<body style='background-color: #2b2b2b;'>\n" \
     .format(
         """<style>
-            table { background-color: #f0f0f0; border-color: black; border: black; }
+            table { background-color: #f0f0f0; border-color: black; border: black; white-space: pre; }
             h1 {
                 background-color: #3c3f41;
                 color: white;
@@ -27,7 +28,6 @@ def generate_html_table(table, wrongs):
             }
             .hidden {
                 background-color: black;
-                white-space: pre;
             }
             .hidden:hover {
                 background-color: black;
@@ -37,7 +37,6 @@ def generate_html_table(table, wrongs):
 
     # Заголовок
     table_html += "<h1 align='center'>Правильность ответов:</h1>\n"
-
     # Начало таблицы
     table_html += "<table border='1' cellpadding='10' align='center'>\n"
 
@@ -48,7 +47,7 @@ def generate_html_table(table, wrongs):
     table_html += "</tr>\n"
 
     # Остальные строки таблицы
-    spacesM = max([len(i[-1]) for i in table[1:]])
+    spacesM = max([len(i[-1].split('\n')[0]) for i in table[1:]])
     counter = [0, 0, 0]
 
     for j in range(1, 26 + 1):
@@ -60,6 +59,10 @@ def generate_html_table(table, wrongs):
             if row[1] == '???':
                 table_html += "<tr style='background-color: #c0ffc0'>\n"
                 row[1] = '❔❔❔'
+            elif row[1] == '_skip_':
+                table_html += "<tr style='background-color: #c0c0ff'>\n"
+                row[1] = '▶ ▶ Пропуск ▶ ▶'
+                row[2] = '💫'
             else:
                 table_html += "<tr>\n" if row[2] else "<tr style='background-color: #fff0f0'>\n"
 
@@ -83,6 +86,9 @@ def generate_html_table(table, wrongs):
                 else:
                     item_s = f"<td align='center' style='color: green'>✔</td>\n"
                     counter[0] += 1
+            elif i == 0 and item[1:] in newest_list:
+                item_s = f"<td align='center'>      {item} 📔</td>\n"
+
             table_html += '\t' + item_s
         table_html += "</tr>\n"
 
@@ -117,7 +123,8 @@ def generate_html_table(table, wrongs):
 def check_task(filename, link, answer=None):
     os.chdir(solutions)
     if answer is None:
-        answer = subprocess.run(["python", filename], capture_output=True, text=True).stdout.lower().strip(' \n')
+        answer = subprocess.run(["python", filename, "checker"],
+                                capture_output=True, text=True).stdout.lower().strip(' \n')
     os.chdir('../')
 
     response = requests.get(link)
@@ -129,12 +136,18 @@ def check_task(filename, link, answer=None):
 
     correct = datablob.split()[-1].strip('\n. ') if le == 5 else datablob[le:ri].strip()
     correct = correct.replace(' ', '')
+
+    if not correct[0].isalpha() and not correct.replace(' ', '').isnumeric():
+        correct = soup.select('center > p')[0].get_text('\n')
+
     return filename, answer, correct
 
 
 def main():
     print("Вывод осуществляется в", answers)
 
+    newest = None
+    newest_list = []
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -150,6 +163,16 @@ def main():
 
             problem_number = [i for i in filename[:filename.find('.')].split(' ') if i.isnumeric()][-1]
             filepath = os.path.join(solutions, filename)
+            mod_time = date.fromtimestamp(os.path.getmtime(filepath))
+
+            if newest is None: newest = mod_time
+
+            if mod_time > newest:
+                # noinspection PyUnusedLocal
+                newest = mod_time
+                newest_list = [problem_number]
+            elif mod_time.day == newest.day:
+                newest_list.append(problem_number)
 
             prob_item = prob_list.find("div", class_="prob_num", string=problem_number)
             assert prob_item, ValueError("ОЙ! Задачи с таким номером нет на сайте!")
@@ -175,7 +198,8 @@ def main():
         print("Running...")
 
         st = time()
-        while (time() - st < 4) and not all([i.ready() for i in tasks.values()]): pass
+        timeout = 4
+        while (time() - st < timeout) and not all([i.ready() for i in tasks.values()]): pass
         print('Finished!')
 
         unfinished = [k for k, v in tasks.items() if not v.ready()]
@@ -188,7 +212,7 @@ def main():
             filename, raw_answer, correct = task.get()
 
             if raw_answer != correct: wrongs.append(problem_number)
-            answer = raw_answer.replace('\n', '↷') if raw_answer else '✖'
+            answer = raw_answer if raw_answer else '✖'
             state = answer == correct
             finished.append(problem_number[1:])
 
@@ -198,9 +222,11 @@ def main():
             table.append(['#' + k, 'TIMEOUT', '⏰', '❔'])
             wrongs.append('#' + k)
 
-        html_table = generate_html_table(table, wrongs)
+        html_table = generate_html_table(table, wrongs, newest_list)
         with open(answers, 'w', encoding='utf-8') as f:
             f.write(html_table)
+
+        print("Новые задания:", ", ".join(newest_list))
 
 
 if __name__ == '__main__':
