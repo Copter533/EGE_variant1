@@ -14,8 +14,17 @@ answers = "answers.html"
 
 
 def generate_html_table(table, wrongs):
-    table_html = "<html>\n<head>\n<meta charset='UTF-8'>\n{}\n</head>\n<body>\n".format(
+    table_html = "<html>\n<head>\n<meta charset='UTF-8'>\n{}\n</head>\n<body style='background-color: #2b2b2b;'>\n" \
+    .format(
         """<style>
+            table { background-color: #f0f0f0; border-color: black; border: black; }
+            h1 {
+                background-color: #3c3f41;
+                color: white;
+
+                padding: 30px;
+                border-radius: 10px;
+            }
             .hidden {
                 background-color: black;
                 white-space: pre;
@@ -42,7 +51,7 @@ def generate_html_table(table, wrongs):
     spacesM = max([len(i[-1]) for i in table[1:]])
     counter = [0, 0, 0]
 
-    for j in range(1, 26+1):
+    for j in range(1, 26 + 1):
         possible_row = [i for i in table if i[0] == f'#{j}']
         row = possible_row[0] if possible_row else [f'#{j}', '', '💫', '❔']
         if not isinstance(row[2], bool):
@@ -64,7 +73,12 @@ def generate_html_table(table, wrongs):
                     item_s = f"<td align='center'>{item}</td>\n"
                     counter[2] += 1
                 elif not item:
-                    item_s = f"<td align='center' style='color: red'>✖</td>\n"
+                    paste = '✖'
+                    answer, correct = row[1], row[3]
+                    answers, corrects = len(answer.split()), len(correct.split())
+                    if answers != corrects:
+                        paste += ' ' + ['МАЛО', 'МНОГО'][answers > corrects]
+                    item_s = f"<td align='center' style='color: red'>{paste}</td>\n"
                     counter[1] += 1
                 else:
                     item_s = f"<td align='center' style='color: green'>✔</td>\n"
@@ -78,7 +92,7 @@ def generate_html_table(table, wrongs):
     # Создаём таблицу с результатами
     wrong_style = "align='center' style='color: red'"
     table_html += f"""\
-<h2 align='center'>Результаты:</h2>
+<h1 align='center'>Результаты:</h1>
 <table border='1' cellpadding='10' align='center'>
     <tr>
         <td align='center' style='color: green'>✔</td>

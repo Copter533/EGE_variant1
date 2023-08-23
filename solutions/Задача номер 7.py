@@ -13,8 +13,8 @@ from cmath import log
 pxs = 1200 * 900
 last_ok = 0
 for x in range(0, 50_000):
-    if not (pxs * x < 900 * 8 * 8): break
+    if not (pxs * x < 900 * 8 * 1024): break
     last_ok = x
 
-print('???')
-# print(int(log(int(last_ok), 2).real))
+
+print(2 ** last_ok)
